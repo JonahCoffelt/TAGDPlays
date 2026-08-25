@@ -10,10 +10,19 @@ const adminKeyPanel = document.getElementById("adminKeyPanel");
 const adminKeyInput = document.getElementById("adminKey");
 const sendingBtn = document.getElementById("sendingBtn");
 const resetTeamsBtn = document.getElementById("resetTeamsBtn");
+const presetName = document.getElementById("presetName");
+const presetList = document.getElementById("presetList");
+const savePresetBtn = document.getElementById("savePresetBtn");
+const loadPresetBtn = document.getElementById("loadPresetBtn");
+const deletePresetBtn = document.getElementById("deletePresetBtn");
+const downloadPresetBtn = document.getElementById("downloadPresetBtn");
+const uploadPresetBtn = document.getElementById("uploadPresetBtn");
+const uploadPresetFile = document.getElementById("uploadPresetFile");
 
 // team id -> { name, selects, activity, size, lastResult }, filled in by buildPanels
 const panels = new Map();
 let sending = true;
+let currentMappings = null;
 
 // Remembered so a refresh mid-event does not mean typing the key again. This is
 // convenience, not secrecy: anyone at this browser can read it.
@@ -108,10 +117,30 @@ function buildPanels(settings) {
 }
 
 function showMappings(mappings) {
+    currentMappings = mappings;
+
     for (const [id, { selects }] of panels) {
         for (const [input, select] of selects) {
             select.value = mappings[id][input];
         }
+    }
+}
+
+function showSaved(saved, selected = presetList.value) {
+    const names = saved ?? [];
+    presetList.replaceChildren();
+
+    if (names.length === 0) {
+        presetList.append(new Option("No saved mappings", ""));
+        presetList.disabled = true;
+        return;
+    }
+
+    presetList.disabled = false;
+    presetList.append(...names.map((name) => new Option(name, name)));
+
+    if (names.includes(selected)) {
+        presetList.value = selected;
     }
 }
 
@@ -146,9 +175,11 @@ async function load() {
     const settings = await gameClient.request("config");
     adminKeyPanel.hidden = !settings.locked;
     showSending(settings.sending);
+    showSaved(settings.saved);
 
     if (panels.size === 0) {
         buildPanels(settings);
+        showMappings(settings.mappings);
     } else {
         showMappings(settings.mappings);
     }
@@ -168,6 +199,86 @@ resetTeamsBtn.addEventListener("click", async () => {
     try {
         await gameClient.request("resetTeams", adminBody());
         say("Everyone has been sent back to the team picker", "ok");
+    } catch (error) {
+        say(error.message);
+    }
+});
+
+savePresetBtn.addEventListener("click", async () => {
+    try {
+        const settings = await gameClient.request("saveMappings", adminBody({ name: presetName.value }));
+        showSaved(settings.saved, presetName.value.trim());
+        say(`Saved mappings as "${presetName.value.trim()}"`, "ok");
+    } catch (error) {
+        say(error.message);
+    }
+});
+
+loadPresetBtn.addEventListener("click", async () => {
+    if (!presetList.value) {
+        say("Save a mapping first");
+        return;
+    }
+
+    try {
+        const settings = await gameClient.request("loadMappings", adminBody({ name: presetList.value }));
+        showMappings(settings.mappings);
+        say(`Loaded "${presetList.value}"`, "ok");
+    } catch (error) {
+        say(error.message);
+    }
+});
+
+deletePresetBtn.addEventListener("click", async () => {
+    if (!presetList.value) {
+        say("Save a mapping first");
+        return;
+    }
+
+    try {
+        const name = presetList.value;
+        const settings = await gameClient.request("deleteMappings", adminBody({ name }));
+        showSaved(settings.saved);
+        say(`Deleted "${name}"`, "ok");
+    } catch (error) {
+        say(error.message);
+    }
+});
+
+downloadPresetBtn.addEventListener("click", () => {
+    if (!currentMappings) {
+        say("Mappings have not loaded yet");
+        return;
+    }
+
+    const blob = new Blob([`${JSON.stringify({ mappings: currentMappings }, null, 4)}\n`], {
+        type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${presetName.value.trim() || "mappings"}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+});
+
+uploadPresetBtn.addEventListener("click", () => uploadPresetFile.click());
+
+uploadPresetFile.addEventListener("change", async () => {
+    const file = uploadPresetFile.files[0];
+    uploadPresetFile.value = "";
+
+    if (!file) {
+        return;
+    }
+
+    try {
+        const parsed = JSON.parse(await file.text());
+        const settings = await gameClient.request("importMappings", adminBody({
+            mappings: parsed.mappings ?? parsed,
+        }));
+        showMappings(settings.mappings);
+        say(`Loaded ${file.name}`, "ok");
     } catch (error) {
         say(error.message);
     }
@@ -193,6 +304,7 @@ gameClient.onClose(() => {
 gameClient.on("config", (settings) => {
     adminKeyPanel.hidden = !settings.locked;
     showSending(settings.sending);
+    showSaved(settings.saved);
     showMappings(settings.mappings);
 });
 

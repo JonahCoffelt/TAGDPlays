@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs";
 import { GameServer } from "../src/index.js";
 
 // Swap the images for your own by replacing the files in public/teams, or point these
@@ -34,6 +35,7 @@ const ADMIN_KEY = process.env.ADMIN_KEY || null;
 const COUNTS_INTERVAL_MS = 250;
 
 const TEAM_IDS = TEAMS.map((team) => team.id);
+const MAPPINGS_DIR = path.join(import.meta.dirname, "mappings");
 
 const gameServer = new GameServer({
     // A host assigns the port at runtime; 3001 is only the local fallback
@@ -85,6 +87,7 @@ function config() {
         inputs: INPUTS,
         keys: KEYS,
         mappings,
+        saved: listSaved(),
         locked: ADMIN_KEY !== null,
         sending,
         teamEpoch,
@@ -95,6 +98,64 @@ function requireAdmin(data) {
     if (ADMIN_KEY !== null && data?.adminKey !== ADMIN_KEY) {
         throw new Error("Wrong admin key");
     }
+}
+
+function mappingName(name) {
+    const cleaned = String(name ?? "").trim();
+
+    // Letters, numbers and a few separators only, so a name can never walk out of MAPPINGS_DIR
+    if (!/^[a-zA-Z0-9_][a-zA-Z0-9._-]{0,47}$/.test(cleaned)) {
+        throw new Error("Name must start with a letter, number or underscore, and use only letters, numbers, dots, dashes or underscores");
+    }
+
+    return cleaned;
+}
+
+function mappingFile(name) {
+    return path.join(MAPPINGS_DIR, `${mappingName(name)}.json`);
+}
+
+function listSaved() {
+    try {
+        return fs.readdirSync(MAPPINGS_DIR)
+            .filter((file) => file.endsWith(".json"))
+            .map((file) => file.slice(0, -5))
+            .sort((a, b) => a.localeCompare(b));
+    } catch {
+        return [];
+    }
+}
+
+function validatedMappings(incoming) {
+    const next = structuredClone(DEFAULT_MAPPINGS);
+
+    for (const team of TEAM_IDS) {
+        const source = incoming?.[team];
+
+        if (!source || typeof source !== "object") {
+            throw new Error(`Missing mappings for team ${team}`);
+        }
+
+        for (const input of INPUTS) {
+            const key = source[input];
+
+            if (!KEYS.includes(key)) {
+                throw new Error(`Team ${team}: ${input} maps to unknown key "${key}"`);
+            }
+
+            next[team][input] = key;
+        }
+    }
+
+    return next;
+}
+
+function applyMappings(next) {
+    for (const team of TEAM_IDS) {
+        Object.assign(mappings[team], next[team]);
+    }
+
+    tellAdmins("config", config());
 }
 
 function tellAdmins(type, data) {
@@ -203,6 +264,61 @@ gameServer.respond("resetTeams", (data) => {
     console.log(`Teams reset, epoch ${teamEpoch}`);
     gameServer.broadcast("resetTeams", { epoch: teamEpoch });
     publishCounts();
+
+    return config();
+});
+
+gameServer.respond("saveMappings", (data) => {
+    requireAdmin(data);
+
+    const name = mappingName(data?.name);
+    fs.mkdirSync(MAPPINGS_DIR, { recursive: true });
+    fs.writeFileSync(mappingFile(name), `${JSON.stringify({ mappings }, null, 4)}\n`);
+    console.log(`Saved mappings as "${name}"`);
+    tellAdmins("config", config());
+
+    return config();
+});
+
+gameServer.respond("loadMappings", (data) => {
+    requireAdmin(data);
+
+    const name = mappingName(data?.name);
+    let parsed;
+
+    try {
+        parsed = JSON.parse(fs.readFileSync(mappingFile(name), "utf8"));
+    } catch {
+        throw new Error(`No saved mappings named "${name}"`);
+    }
+
+    applyMappings(validatedMappings(parsed.mappings ?? parsed));
+    console.log(`Loaded mappings "${name}"`);
+
+    return config();
+});
+
+gameServer.respond("importMappings", (data) => {
+    requireAdmin(data);
+    applyMappings(validatedMappings(data?.mappings));
+    console.log("Imported mappings");
+
+    return config();
+});
+
+gameServer.respond("deleteMappings", (data) => {
+    requireAdmin(data);
+
+    const name = mappingName(data?.name);
+
+    try {
+        fs.unlinkSync(mappingFile(name));
+    } catch {
+        throw new Error(`No saved mappings named "${name}"`);
+    }
+
+    console.log(`Deleted mappings "${name}"`);
+    tellAdmins("config", config());
 
     return config();
 });

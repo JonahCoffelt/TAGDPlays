@@ -1,0 +1,24 @@
+{
+    "mappings": {
+        "1": {
+            "up": "r",
+            "down": "down",
+            "left": "left",
+            "right": "right",
+            "A": "z",
+            "B": "x",
+            "X": "c",
+            "Y": "v"
+        },
+        "2": {
+            "up": "w",
+            "down": "s",
+            "left": "a",
+            "right": "d",
+            "A": "j",
+            "B": "k",
+            "X": "l",
+            "Y": "i"
+        }
+    }
+}

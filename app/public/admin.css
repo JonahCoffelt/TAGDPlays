@@ -210,6 +210,45 @@ input {
     padding-right: 0.4rem;
 }
 
+.presets h2 {
+    margin-bottom: 0.75rem;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.preset-row {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.preset-row + .preset-row {
+    margin-top: 0.6rem;
+}
+
+.preset-row input,
+.preset-row select {
+    flex: 1;
+    min-width: 10rem;
+}
+
+.preset-row button {
+    padding: 0.4rem 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background: var(--background);
+    color: var(--text);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.preset-row button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
 #teamPanels {
     display: flex;
     flex-direction: column;

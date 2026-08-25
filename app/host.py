@@ -25,7 +25,7 @@ SERVER = os.environ.get("SERVER", "https://tagdplays.onrender.com/")
 # Force a backend with KEYBOARD_BACKEND=uinput|sendinput|quartz|pynput
 KEYBOARD_BACKEND = os.environ.get("KEYBOARD_BACKEND", "auto")
 
-POLL_INTERVAL = 3
+POLL_INTERVAL = 0.1
 # Games read the keyboard once a frame, so an instant press and release can fall between frames
 HOLD_TIME = 0.05
 

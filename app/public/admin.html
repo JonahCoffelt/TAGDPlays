@@ -28,6 +28,26 @@
         <input type="password" id="adminKey" autocomplete="off" placeholder="Required to save changes">
     </section>
 
+    <section class="panel presets">
+        <h2>Saved mappings</h2>
+        <div class="preset-row">
+            <input id="presetName" type="text" maxlength="48" placeholder="Name, e.g. celeste" autocomplete="off">
+            <button type="button" id="savePresetBtn">Save</button>
+        </div>
+        <div class="preset-row">
+            <select id="presetList">
+                <option value="">No saved mappings</option>
+            </select>
+            <button type="button" id="loadPresetBtn">Load</button>
+            <button type="button" id="deletePresetBtn">Delete</button>
+        </div>
+        <div class="preset-row">
+            <button type="button" id="downloadPresetBtn">Download</button>
+            <button type="button" id="uploadPresetBtn">Load from file</button>
+            <input id="uploadPresetFile" type="file" accept="application/json,.json" hidden>
+        </div>
+    </section>
+
     <div id="teamPanels"></div>
 
     <p class="message" id="message" role="status"></p>
