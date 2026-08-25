@@ -5,14 +5,15 @@ gameClient.connect();
 
 const statusElement = document.getElementById("status");
 const messageElement = document.getElementById("message");
-const mappingsElement = document.getElementById("mappings");
-const playersElement = document.getElementById("players");
-const lastResultElement = document.getElementById("lastResult");
+const teamPanels = document.getElementById("teamPanels");
 const adminKeyPanel = document.getElementById("adminKeyPanel");
 const adminKeyInput = document.getElementById("adminKey");
+const sendingBtn = document.getElementById("sendingBtn");
+const resetTeamsBtn = document.getElementById("resetTeamsBtn");
 
-const selects = new Map();
-const activity = new Map();
+// team id -> { name, selects, activity, size, lastResult }, filled in by buildPanels
+const panels = new Map();
+let sending = true;
 
 // Remembered so a refresh mid-event does not mean typing the key again. This is
 // convenience, not secrecy: anyone at this browser can read it.
@@ -26,65 +27,117 @@ function say(text, state = "error") {
     messageElement.dataset.state = state;
 }
 
-function buildRows({ inputs, keys, mapping }) {
-    mappingsElement.replaceChildren();
-    selects.clear();
-    activity.clear();
+function showSending(on) {
+    sending = on;
+    sendingBtn.dataset.state = on ? "on" : "off";
+    sendingBtn.textContent = on ? "Inputs on" : "Inputs off";
+}
+
+function adminBody(extra = {}) {
+    return { ...extra, adminKey: adminKeyInput.value };
+}
+
+function element(tag, className, text) {
+    const created = document.createElement(tag);
+
+    if (className) {
+        created.className = className;
+    }
+
+    if (text !== undefined) {
+        created.textContent = text;
+    }
+
+    return created;
+}
+
+function buildPanel(team, { inputs, keys, mappings }) {
+    const panel = element("section", "panel");
+
+    const heading = element("div", "team-heading");
+    const image = element("img", "team-image");
+    image.src = team.image;
+    image.alt = "";
+    heading.append(image, element("h2", null, team.name));
+
+    const table = element("table", "mappings");
+    const head = table.createTHead().insertRow();
+    head.append(element("th", null, "Button"), element("th", null, "Presses"));
+    head.append(element("th", "numeric", "Activity"));
+
+    const body = table.createTBody();
+    const selects = new Map();
+    const activity = new Map();
 
     for (const input of inputs) {
-        const row = mappingsElement.insertRow();
-
-        const name = row.insertCell();
-        name.className = "button-name";
-        name.textContent = input;
+        const row = body.insertRow();
+        row.append(element("td", "button-name", input));
 
         const select = document.createElement("select");
         select.append(...keys.map((key) => new Option(key, key)));
-        select.value = mapping[input];
-        select.addEventListener("change", () => save(input, select.value));
+        select.value = mappings[team.id][input];
+        select.addEventListener("change", () => save(team.id, input, select.value));
         row.insertCell().append(select);
         selects.set(input, select);
 
-        const cell = row.insertCell();
-        cell.className = "activity";
-        const bar = document.createElement("span");
-        bar.className = "activity-bar";
-        const count = document.createElement("span");
-        count.className = "activity-count";
-        count.textContent = "0";
+        const cell = element("td", "activity");
+        const bar = element("span", "activity-bar");
+        const count = element("span", "activity-count", "0");
         cell.append(bar, count);
+        row.append(cell);
         activity.set(input, { bar, count });
     }
+
+    const footer = element("div", "team-footer");
+    const size = element("span", "team-size", "0 controllers");
+    const lastResult = element("span", "team-result", "No rounds yet");
+    footer.append(size, lastResult);
+
+    panel.append(heading, table, footer);
+    teamPanels.append(panel);
+    panels.set(team.id, { name: team.name, selects, activity, size, lastResult });
 }
 
-function showMapping(mapping) {
-    for (const [input, select] of selects) {
-        select.value = mapping[input];
+function buildPanels(settings) {
+    teamPanels.replaceChildren();
+    panels.clear();
+
+    for (const team of settings.teams) {
+        buildPanel(team, settings);
     }
 }
 
-function showCounts(counts) {
-    const highest = Math.max(1, ...Object.values(counts));
-
-    for (const [input, { bar, count }] of activity) {
-        count.textContent = counts[input] ?? 0;
-        bar.style.width = `${((counts[input] ?? 0) / highest) * 100}%`;
+function showMappings(mappings) {
+    for (const [id, { selects }] of panels) {
+        for (const [input, select] of selects) {
+            select.value = mappings[id][input];
+        }
     }
 }
 
-async function save(input, key) {
+function showCounts(counts, sizes) {
+    for (const [id, { activity, size }] of panels) {
+        const tally = counts[id] ?? {};
+        const highest = Math.max(1, ...Object.values(tally));
+
+        for (const [input, { bar, count }] of activity) {
+            count.textContent = tally[input] ?? 0;
+            bar.style.width = `${((tally[input] ?? 0) / highest) * 100}%`;
+        }
+
+        const players = sizes[id] ?? 0;
+        size.textContent = `${players} controller${players === 1 ? "" : "s"}`;
+    }
+}
+
+async function save(team, input, key) {
     try {
-        const { mapping } = await gameClient.request("setMapping", {
-            input,
-            key,
-            adminKey: adminKeyInput.value,
-        });
-
-        showMapping(mapping);
-        say(`${input} now presses ${key}`, "ok");
+        const { mappings } = await gameClient.request("setMapping", adminBody({ team, input, key }));
+        showMappings(mappings);
+        const name = panels.get(team)?.name ?? `Team ${team}`;
+        say(`${name}: ${input} now presses ${key}`, "ok");
     } catch (error) {
         say(error.message);
-        // The server refused, so put the row back to what it actually has
         await load();
     }
 }
@@ -92,19 +145,37 @@ async function save(input, key) {
 async function load() {
     const settings = await gameClient.request("config");
     adminKeyPanel.hidden = !settings.locked;
+    showSending(settings.sending);
 
-    if (selects.size === 0) {
-        buildRows(settings);
+    if (panels.size === 0) {
+        buildPanels(settings);
     } else {
-        showMapping(settings.mapping);
+        showMappings(settings.mappings);
     }
 }
+
+sendingBtn.addEventListener("click", async () => {
+    try {
+        const settings = await gameClient.request("setSending", adminBody({ sending: !sending }));
+        showSending(settings.sending);
+        say(settings.sending ? "Game is receiving inputs" : "Game is not receiving inputs", "ok");
+    } catch (error) {
+        say(error.message);
+    }
+});
+
+resetTeamsBtn.addEventListener("click", async () => {
+    try {
+        await gameClient.request("resetTeams", adminBody());
+        say("Everyone has been sent back to the team picker", "ok");
+    } catch (error) {
+        say(error.message);
+    }
+});
 
 gameClient.onOpen(async () => {
     statusElement.dataset.state = "online";
     statusElement.textContent = "Connected";
-
-    // Tells the server to send this page the live press counts
     gameClient.send("watch");
 
     try {
@@ -121,15 +192,24 @@ gameClient.onClose(() => {
 
 gameClient.on("config", (settings) => {
     adminKeyPanel.hidden = !settings.locked;
-    showMapping(settings.mapping);
+    showSending(settings.sending);
+    showMappings(settings.mappings);
 });
 
-gameClient.on("counts", ({ counts, players }) => {
-    showCounts(counts);
-    playersElement.textContent = players;
+gameClient.on("counts", ({ counts, sizes }) => {
+    showCounts(counts, sizes);
 });
 
-gameClient.on("result", (result) => {
-    lastResultElement.textContent =
-        `Last round: ${result.input} won ${result.count} of ${result.total}, pressed ${result.key}`;
+gameClient.on("result", (results) => {
+    for (const [id, result] of Object.entries(results)) {
+        const panel = panels.get(id);
+
+        if (!panel) {
+            continue;
+        }
+
+        panel.lastResult.textContent = result
+            ? `Last round: ${result.input} won ${result.count} of ${result.total}, pressed ${result.key}`
+            : "Last round: nobody pressed anything";
+    }
 });

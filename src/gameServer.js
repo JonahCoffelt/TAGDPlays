@@ -8,6 +8,15 @@ const CONTENT_TYPES = {
     ".html": "text/html",
     ".js": "text/javascript",
     ".css": "text/css",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".ico": "image/x-icon",
+    ".json": "application/json",
+    ".woff2": "font/woff2",
 }
 
 class ConnectedClient {

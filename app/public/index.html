@@ -13,7 +13,18 @@
 <body>
     <span class="status" id="status" data-state="connecting" role="status">Connecting</span>
 
-    <main class="controller">
+    <section class="picker" id="picker" hidden>
+        <h1 class="picker-title">Pick your team</h1>
+        <p class="picker-hint">You will stay on this team for the rest of the event</p>
+        <div class="picker-teams" id="pickerTeams"></div>
+    </section>
+
+    <main class="controller" id="controller" hidden>
+        <div class="badge" id="badge">
+            <img class="badge-image" id="badgeImage" alt="">
+            <span class="badge-name" id="badgeName"></span>
+        </div>
+
         <div class="dpad">
             <button class="dpad-key dpad-up" type="button" data-input="up" aria-label="Up"></button>
             <button class="dpad-key dpad-left" type="button" data-input="left" aria-label="Left"></button>

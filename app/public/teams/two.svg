@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Team Two">
+    <defs>
+        <linearGradient id="teamTwo" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#ffa14f" />
+            <stop offset="1" stop-color="#e0432b" />
+        </linearGradient>
+    </defs>
+
+    <rect width="200" height="200" rx="40" fill="url(#teamTwo)" />
+    <path d="M100 36 154 58v46c0 34-22 52-54 64-32-12-54-30-54-64V58z" fill="#fff" fill-opacity="0.14" />
+    <text x="100" y="136" text-anchor="middle" fill="#fff" font-family="system-ui, sans-serif"
+        font-size="104" font-weight="700">2</text>
+</svg>

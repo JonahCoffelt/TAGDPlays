@@ -1,11 +1,11 @@
-"""Presses whichever button the crowd pressed most.
+"""Presses whichever button each team pressed most.
 
-Start app/server.js first, then run this on the machine running the game. Each poll
-takes the leading button and clears the counts, so a round covers exactly the time
-since the previous poll.
+Start app/server.js first, then run this on the machine running the game. Every team
+is counted separately and every poll takes the leading button from each of them, so a
+round covers exactly the time since the previous poll.
 
-Which key each button presses is decided by the server and edited at /admin.html, so
-this only has to press whatever key it is handed.
+Which key each team's buttons press is decided by the server and edited at
+/admin.html, so this only has to press whatever keys it is handed.
 """
 
 import asyncio
@@ -22,6 +22,8 @@ from src import GameClient, RequestError
 # Either the address a browser would use or a ws:// one, since websocket_url converts it:
 #   SERVER=https://your-app.onrender.com python app/host.py
 SERVER = os.environ.get("SERVER", "https://tagdplays.onrender.com/")
+# Force a backend with KEYBOARD_BACKEND=uinput|sendinput|quartz|pynput
+KEYBOARD_BACKEND = os.environ.get("KEYBOARD_BACKEND", "auto")
 
 POLL_INTERVAL = 3
 # Games read the keyboard once a frame, so an instant press and release can fall between frames
@@ -46,41 +48,78 @@ def websocket_url(server):
     return server.rstrip("/")
 
 
-async def press(presser, key):
-    presser.down(key)
+async def press(presser, keys):
+    """Hold every key down together, so both teams act in the same instant."""
+    # Two teams mapped to the same key is still one press, and pressing it twice would
+    # leave the second release lifting a key that is already up
+    keys = list(dict.fromkeys(keys))
+
+    for key in keys:
+        presser.down(key)
+
     await asyncio.sleep(HOLD_TIME)
-    presser.up(key)
+
+    for key in reversed(keys):
+        presser.up(key)
 
 
-async def play(client, presser):
-    while True:
-        await asyncio.sleep(POLL_INTERVAL)
+def keys_from(results):
+    keys = []
 
-        try:
-            result = await client.request("winner")
-        except (RequestError, TimeoutError) as error:
-            print(f"Could not read the input: {error}")
-            continue
-
-        if result is None:
+    for team, result in sorted(results.items()):
+        if team == "sending" or not isinstance(result, dict):
             continue
 
         key = result["key"]
 
-        # The mapping lives on the server and is edited from /admin.html, so a key this
+        # The mappings live on the server and are edited from /admin.html, so a key this
         # build cannot press means the two have drifted apart
         if key not in SUPPORTED_KEYS:
-            print(f"Server asked for key {key!r}, which this host cannot press")
+            print(f"Team {team} asked for key {key!r}, which this host cannot press")
             continue
 
-        print(f"{result['input']} won {result['count']}/{result['total']}, pressing {key}")
-        await press(presser, key)
+        print(
+            f"Team {team}: {result['input']} won {result['count']}/{result['total']}, "
+            f"pressing {key}"
+        )
+        keys.append(key)
+
+    return keys
+
+
+async def play(client, presser):
+    sending = True
+
+    while True:
+        await asyncio.sleep(POLL_INTERVAL)
+
+        try:
+            results = await client.request("winner")
+        except (RequestError, TimeoutError) as error:
+            print(f"Could not read the inputs: {error}")
+            continue
+
+        now_sending = results.get("sending", True)
+
+        if now_sending != sending:
+            sending = now_sending
+            print("Input sending is on" if sending else "Input sending is off")
+
+        if not sending:
+            continue
+
+        keys = keys_from(results)
+
+        if keys:
+            await press(presser, keys)
 
 
 async def main():
     url = websocket_url(SERVER)
-    presser = make_presser()
-    print(f"Pressing keys with the {presser.name} backend")
+    presser = make_presser(backend=KEYBOARD_BACKEND)
+    print(f"Pressing keys with the {presser.name} backend on {sys.platform}")
+    if getattr(presser, "hint", None):
+        print(presser.hint)
     print(f"Connecting to {url}")
 
     client = GameClient(url)
