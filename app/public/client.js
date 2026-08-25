@@ -4,52 +4,35 @@ const gameClient = new GameClient();
 gameClient.connect();
 
 const statusElement = document.getElementById("status");
-const resultElement = document.getElementById("result");
-const pads = document.querySelectorAll("[data-button]");
 
-for (const pad of pads) {
-    const button = pad.dataset.button;
+for (const key of document.querySelectorAll("[data-input]")) {
+    const input = key.dataset.input;
 
-    // pointerdown rather than click, so a vote fires the moment a thumb lands
-    gameClient.addInput(pad, "pointerdown", "vote", { button });
-    gameClient.addKey(`Key${button}`, "vote", { button });
+    // pointerdown rather than click, so a press registers the moment a thumb lands.
+    // Each key listens for itself, which is what makes two-thumb presses both count.
+    gameClient.addInput(key, "pointerdown", "press", { input });
 
-    window.addEventListener("keydown", (event) => {
-        if (event.code === `Key${button}` && !event.repeat) {
-            flash(pad);
-        }
+    key.addEventListener("pointerdown", (event) => {
+        // Keeps the press with this key even if the thumb slides off it
+        key.setPointerCapture(event.pointerId);
+        key.classList.add("is-pressed");
+        navigator.vibrate?.(12);
     });
-}
 
-function flash(pad) {
-    pad.classList.add("is-pressed");
-    setTimeout(() => pad.classList.remove("is-pressed"), 120);
-}
-
-function setStatus(state, text) {
-    statusElement.dataset.state = state;
-    statusElement.textContent = text;
-}
-
-function showTally(votes) {
-    for (const [button, count] of Object.entries(votes ?? {})) {
-        const element = document.querySelector(`[data-count="${button}"]`);
-
-        if (element) {
-            element.textContent = count;
-        }
+    for (const event of ["pointerup", "pointercancel"]) {
+        key.addEventListener(event, () => key.classList.remove("is-pressed"));
     }
 }
 
-gameClient.onOpen(() => setStatus("online", "Connected"));
-gameClient.onClose(() => setStatus("offline", "Reconnecting"));
+// A long press on a button otherwise raises the text selection or save-image menu
+window.addEventListener("contextmenu", (event) => event.preventDefault());
 
-gameClient.on("welcome", (data) => {
-    showTally(data.votes);
+gameClient.onOpen(() => {
+    statusElement.dataset.state = "online";
+    statusElement.textContent = "Connected";
 });
 
-gameClient.on("tally", showTally);
-
-gameClient.on("result", (data) => {
-    resultElement.textContent = `${data.button} won with ${data.count} of ${data.total} votes`;
+gameClient.onClose(() => {
+    statusElement.dataset.state = "offline";
+    statusElement.textContent = "Reconnecting";
 });

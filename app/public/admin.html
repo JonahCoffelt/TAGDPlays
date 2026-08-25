@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0b0e14">
+    <title>Controller mappings</title>
+    <link rel="stylesheet" href="/admin.css">
+</head>
+
+<body>
+    <header class="header">
+        <div>
+            <h1>Controller mappings</h1>
+            <p class="subtitle">What each button presses on the host machine</p>
+        </div>
+        <p class="status" id="status" data-state="connecting">Connecting</p>
+    </header>
+
+    <section class="panel admin-key" id="adminKeyPanel" hidden>
+        <label for="adminKey">Admin key</label>
+        <input type="password" id="adminKey" autocomplete="off" placeholder="Required to save changes">
+    </section>
+
+    <section class="panel">
+        <table class="mappings">
+            <thead>
+                <tr>
+                    <th>Button</th>
+                    <th>Presses</th>
+                    <th class="numeric">Activity</th>
+                </tr>
+            </thead>
+            <tbody id="mappings"></tbody>
+        </table>
+    </section>
+
+    <section class="panel stats">
+        <p><span class="stat" id="players">0</span> controllers connected</p>
+        <p class="last-result" id="lastResult">No rounds yet</p>
+    </section>
+
+    <p class="message" id="message" role="status"></p>
+
+    <script type="module" src="/admin.js"></script>
+</body>
+
+</html>

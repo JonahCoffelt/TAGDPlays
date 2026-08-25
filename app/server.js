@@ -1,8 +1,34 @@
 import path from "node:path";
 import { GameServer } from "../src/index.js";
 
-const BUTTONS = ["A", "B"];
-const TALLY_INTERVAL_MS = 250;
+const INPUTS = ["up", "down", "left", "right", "A", "B", "X", "Y"];
+
+// Every key host.py knows how to press, so a mapping can never ask for something
+// the host would choke on. Kept in step with SUPPORTED_KEYS in keypress.py.
+const KEYS = [
+    ..."abcdefghijklmnopqrstuvwxyz",
+    ..."0123456789",
+    "up", "down", "left", "right",
+    "space", "enter", "esc", "tab", "backspace",
+    "shift", "ctrl", "alt",
+];
+
+const DEFAULT_MAPPING = {
+    up: "up",
+    down: "down",
+    left: "left",
+    right: "right",
+    A: "z",
+    B: "x",
+    X: "a",
+    Y: "s",
+};
+
+// Set this to require a key before anyone can change the mapping. Worth doing whenever
+// the server is reachable from the public internet, since /admin.html is not secret.
+const ADMIN_KEY = process.env.ADMIN_KEY || null;
+
+const COUNTS_INTERVAL_MS = 250;
 
 const gameServer = new GameServer({
     // A host assigns the port at runtime; 3001 is only the local fallback
@@ -14,66 +40,107 @@ const gameServer = new GameServer({
     trustProxy: Boolean(process.env.RENDER),
 });
 
-let votes = emptyTally();
+const mapping = { ...DEFAULT_MAPPING };
+// Admin pages watch the live counts; controllers have no use for them
+const admins = new Set();
+
+let counts = emptyCounts();
 let lastResult = null;
 
-function emptyTally() {
-    return Object.fromEntries(BUTTONS.map((button) => [button, 0]));
+function emptyCounts() {
+    return Object.fromEntries(INPUTS.map((input) => [input, 0]));
 }
 
-gameServer.onConnection((client) => {
-    console.log(`Player ${client.id} joined, ${gameServer.clients.size} connected`);
-    client.send("welcome", { buttons: BUTTONS, votes, lastResult });
+function config() {
+    return { inputs: INPUTS, keys: KEYS, mapping, locked: ADMIN_KEY !== null };
+}
+
+function tellAdmins(type, data) {
+    for (const admin of admins) {
+        admin.send(type, data);
+    }
+}
+
+gameServer.onDisconnect((client) => {
+    admins.delete(client);
 });
 
-gameServer.onDisconnect(() => {
-    console.log(`A player left, ${gameServer.clients.size} connected`);
+gameServer.on("watch", (data, client) => {
+    admins.add(client);
 });
 
-gameServer.on("vote", (data, client) => {
-    const button = data?.button;
+gameServer.on("press", (data, client) => {
+    const input = data?.input;
 
-    if (!BUTTONS.includes(button)) {
-        console.warn(`Ignoring unknown button "${button}" from ${client.id}`);
+    if (!INPUTS.includes(input)) {
+        console.warn(`Ignoring unknown input "${input}" from ${client.id}`);
         return;
     }
 
-    votes[button]++;
+    counts[input]++;
 });
 
-// Reading the winner also starts the next round, so no vote is ever pressed twice
+gameServer.respond("config", config);
+
+gameServer.respond("setMapping", (data) => {
+    if (ADMIN_KEY !== null && data?.adminKey !== ADMIN_KEY) {
+        throw new Error("Wrong admin key");
+    }
+
+    const { input, key } = data ?? {};
+
+    if (!INPUTS.includes(input)) {
+        throw new Error(`Unknown input "${input}"`);
+    }
+
+    if (!KEYS.includes(key)) {
+        throw new Error(`Unknown key "${key}"`);
+    }
+
+    mapping[input] = key;
+    console.log(`${input} now presses ${key}`);
+    tellAdmins("config", config());
+
+    return config();
+});
+
+// Reading the winner also starts the next round, so no press is ever sent to the host twice
 gameServer.respond("winner", () => {
-    const total = BUTTONS.reduce((sum, button) => sum + votes[button], 0);
+    const total = INPUTS.reduce((sum, input) => sum + counts[input], 0);
 
     if (total === 0) {
         return null;
     }
 
-    const highest = Math.max(...BUTTONS.map((button) => votes[button]));
-    const tied = BUTTONS.filter((button) => votes[button] === highest);
-    // Broken by chance rather than by button order, so neither button is favoured in a tie
-    const button = tied[Math.floor(Math.random() * tied.length)];
+    const highest = Math.max(...INPUTS.map((input) => counts[input]));
+    const tied = INPUTS.filter((input) => counts[input] === highest);
+    // Broken by chance rather than by input order, so no input is favoured in a tie
+    const input = tied[Math.floor(Math.random() * tied.length)];
 
-    lastResult = { button, count: votes[button], total, votes };
-    votes = emptyTally();
+    lastResult = { input, key: mapping[input], count: counts[input], total, counts };
+    counts = emptyCounts();
 
-    console.log(`${button} wins with ${lastResult.count} of ${total} votes`);
-    gameServer.broadcast("result", lastResult);
+    console.log(`${input} wins with ${lastResult.count} of ${total}, pressing ${lastResult.key}`);
+    tellAdmins("result", lastResult);
 
     return lastResult;
 });
 
-let lastBroadcast = "";
+let lastSent = "";
 
 setInterval(() => {
-    const encoded = JSON.stringify(votes);
-
-    if (encoded === lastBroadcast) {
+    if (admins.size === 0) {
         return;
     }
 
-    lastBroadcast = encoded;
-    gameServer.broadcast("tally", votes);
-}, TALLY_INTERVAL_MS);
+    const snapshot = JSON.stringify(counts);
+
+    if (snapshot === lastSent) {
+        return;
+    }
+
+    lastSent = snapshot;
+    tellAdmins("counts", { counts, players: gameServer.clients.size - admins.size });
+}, COUNTS_INTERVAL_MS);
 
 gameServer.start();

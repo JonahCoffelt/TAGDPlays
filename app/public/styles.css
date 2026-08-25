@@ -1,12 +1,16 @@
 :root {
     --background: #0b0e14;
-    --surface: #151a24;
-    --border: #232a38;
+    --shell: #161b26;
+    --key: #232b3a;
+    --key-edge: #323c50;
     --text: #e7ecf5;
-    --muted: #8a94a6;
-    --a: #4f7cff;
-    --b: #ff6b4f;
+    --muted: #7d879a;
     --online: #3ddc84;
+    --offline: #ff6b4f;
+    --a: #3ddc84;
+    --b: #ff5f56;
+    --x: #4f8dff;
+    --y: #ffc542;
 }
 
 * {
@@ -15,132 +19,228 @@
     padding: 0;
 }
 
+html,
 body {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    min-height: 100dvh;
-    padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));
-    background: var(--background);
+    height: 100%;
+}
+
+body {
+    background: radial-gradient(120% 120% at 50% 0%, #131926 0%, var(--background) 60%);
     color: var(--text);
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    /* A game controller should never scroll, zoom or select text under a fast thumb */
+    /* A controller should never scroll, zoom, select text or pop a callout under a
+       fast thumb, and touch-action: none is what stops a drag becoming a page gesture */
     overscroll-behavior: none;
-    touch-action: manipulation;
+    touch-action: none;
     -webkit-user-select: none;
     user-select: none;
+    -webkit-touch-callout: none;
     -webkit-tap-highlight-color: transparent;
 }
 
-.header {
+.status {
+    position: fixed;
+    top: max(0.6rem, env(safe-area-inset-top));
+    left: 50%;
+    transform: translateX(-50%);
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-}
-
-.title {
-    font-size: 1rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
+    gap: 0.4rem;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--muted);
-}
-
-.status {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.35rem 0.75rem;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: var(--surface);
-    font-size: 0.8rem;
-    color: var(--muted);
+    transition: opacity 0.4s ease;
 }
 
 .status::before {
     content: "";
-    width: 0.5rem;
-    height: 0.5rem;
+    width: 0.45rem;
+    height: 0.45rem;
     border-radius: 50%;
     background: currentColor;
 }
 
 .status[data-state="online"] {
     color: var(--online);
+    /* Once connected the pill has nothing left to say, so it gets out of the way */
+    opacity: 0;
 }
 
 .status[data-state="offline"] {
-    color: var(--b);
+    color: var(--offline);
 }
 
-.pads {
-    display: grid;
-    flex: 1;
-    grid-template-columns: 1fr 1fr;
+.controller {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     gap: 1rem;
+    height: 100%;
+    padding: max(1rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right))
+        max(1rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
 }
 
-@media (max-aspect-ratio: 3/4) {
-    .pads {
-        grid-template-columns: 1fr;
+/* Both clusters are sized from whichever viewport side is tighter, so the controller
+   keeps its shape and stays on screen upright or turned sideways */
+.dpad,
+.face {
+    position: relative;
+    width: min(44vw, 62vh);
+    height: min(44vw, 62vh);
+    flex: none;
+}
+
+/* Upright, the clusters belong down where thumbs actually rest */
+@media (orientation: portrait) {
+    .controller {
+        align-items: flex-end;
+        padding-bottom: max(2.5rem, env(safe-area-inset-bottom));
     }
 }
 
-.pad {
+.dpad {
+    display: grid;
+    grid-template-areas:
+        ". up ."
+        "left hub right"
+        ". down .";
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr 1fr;
+}
+
+.dpad-key,
+.dpad-hub {
+    border: 1px solid var(--key-edge);
+    background: linear-gradient(180deg, #2a3446 0%, var(--key) 100%);
+}
+
+.dpad-key {
     position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    border: 1px solid var(--border);
-    border-radius: 1.5rem;
-    background: var(--surface);
-    color: var(--text);
-    font: inherit;
+    color: var(--muted);
     cursor: pointer;
-    transition: transform 0.08s ease, background 0.15s ease, border-color 0.15s ease;
+    transition: filter 0.08s ease, transform 0.08s ease;
 }
 
-.pad[data-button="A"] {
-    --accent: var(--a);
+.dpad-hub {
+    grid-area: hub;
+    border-left: none;
+    border-right: none;
+    border-top: none;
+    border-bottom: none;
 }
 
-.pad[data-button="B"] {
+.dpad-up {
+    grid-area: up;
+    border-bottom: none;
+    border-radius: 0.9rem 0.9rem 0 0;
+}
+
+.dpad-down {
+    grid-area: down;
+    border-top: none;
+    border-radius: 0 0 0.9rem 0.9rem;
+}
+
+.dpad-left {
+    grid-area: left;
+    border-right: none;
+    border-radius: 0.9rem 0 0 0.9rem;
+}
+
+.dpad-right {
+    grid-area: right;
+    border-left: none;
+    border-radius: 0 0.9rem 0.9rem 0;
+}
+
+/* Arrow glyphs drawn as rotated triangles, so there is no font or icon file to load */
+.dpad-key::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    border: 0.6rem solid transparent;
+    transform: translate(-50%, -50%);
+}
+
+.dpad-up::after {
+    border-bottom-color: currentColor;
+    margin-top: -0.3rem;
+}
+
+.dpad-down::after {
+    border-top-color: currentColor;
+    margin-top: 0.3rem;
+}
+
+.dpad-left::after {
+    border-right-color: currentColor;
+    margin-left: -0.3rem;
+}
+
+.dpad-right::after {
+    border-left-color: currentColor;
+    margin-left: 0.3rem;
+}
+
+.face {
+    display: grid;
+    grid-template-areas:
+        ". y ."
+        "x . b"
+        ". a .";
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr 1fr;
+    place-items: center;
+}
+
+.face-key {
+    width: 100%;
+    aspect-ratio: 1;
+    border: 1px solid var(--key-edge);
+    border-radius: 50%;
+    background: linear-gradient(180deg, #2a3446 0%, var(--key) 100%);
+    color: var(--accent);
+    font: inherit;
+    font-size: clamp(1rem, 4.5vmin, 1.6rem);
+    font-weight: 700;
+    cursor: pointer;
+    transition: filter 0.08s ease, transform 0.08s ease;
+}
+
+.face-y {
+    grid-area: y;
+    --accent: var(--y);
+}
+
+.face-x {
+    grid-area: x;
+    --accent: var(--x);
+}
+
+.face-b {
+    grid-area: b;
     --accent: var(--b);
 }
 
-.pad:active,
-.pad.is-pressed {
-    transform: scale(0.97);
-    border-color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 22%, var(--surface));
+.face-a {
+    grid-area: a;
+    --accent: var(--a);
 }
 
-.pad-label {
-    font-size: clamp(3rem, 18vmin, 7rem);
-    font-weight: 700;
-    line-height: 1;
-    color: var(--accent);
+.dpad-key.is-pressed,
+.face-key.is-pressed {
+    transform: scale(0.94);
+    filter: brightness(1.6);
 }
 
-.pad-count {
-    min-width: 2.5rem;
-    padding: 0.25rem 0.75rem;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.06);
-    font-size: 0.9rem;
-    font-variant-numeric: tabular-nums;
-    color: var(--muted);
-}
-
-.footer {
-    text-align: center;
-}
-
-.result {
-    font-size: 0.9rem;
-    color: var(--muted);
+@media (min-width: 900px) {
+    .controller {
+        justify-content: center;
+        gap: 6rem;
+    }
 }

@@ -7,12 +7,26 @@ Injecting keystrokes is not portable, so there are two backends:
 - ``pynput`` drives X11's XTEST extension, so it only reaches X11 and XWayland windows.
 
 Key names are lowercase and mostly speak for themselves: "a", "5", "space", "enter",
-"esc", "tab", "up", "down", "left", "right".
+"esc", "tab", "backspace", "shift", "ctrl", "alt", "up", "down", "left", "right".
 """
 
+import string
 import time
 
-__all__ = ["make_presser", "BACKENDS"]
+__all__ = ["make_presser", "BACKENDS", "SUPPORTED_KEYS"]
+
+# Every key a mapping is allowed to name. Kept in step with KEYS in server.js, so the
+# server can never hand back a key this cannot press.
+SUPPORTED_KEYS = [
+    *string.ascii_lowercase,
+    *string.digits,
+    "up", "down", "left", "right",
+    "space", "enter", "esc", "tab", "backspace",
+    "shift", "ctrl", "alt",
+]
+
+# evdev has no plain KEY_SHIFT, only sided ones, while pynput has no sided names
+UINPUT_ALIASES = {"shift": "leftshift", "ctrl": "leftctrl", "alt": "leftalt"}
 
 # A virtual keyboard is not usable the instant it is created: the compositor has to
 # notice the new device first, and presses sent before then go nowhere
@@ -32,7 +46,8 @@ class UinputPresser:
         time.sleep(UINPUT_SETTLE_TIME)
 
     def _code(self, key):
-        code = self._ecodes.ecodes.get(f"KEY_{key.upper()}")
+        name = UINPUT_ALIASES.get(key, key)
+        code = self._ecodes.ecodes.get(f"KEY_{name.upper()}")
 
         if code is None:
             raise ValueError(f'No uinput key named "{key}"')
@@ -76,9 +91,9 @@ class PynputPresser:
 BACKENDS = {"uinput": UinputPresser, "pynput": PynputPresser}
 
 
-def make_presser(keys, backend="auto"):
+def make_presser(keys=None, backend="auto"):
     """Return a presser for ``keys``, trying each backend in turn when set to "auto"."""
-    keys = list(keys)
+    keys = SUPPORTED_KEYS if keys is None else list(keys)
 
     if backend != "auto":
         if backend not in BACKENDS:
