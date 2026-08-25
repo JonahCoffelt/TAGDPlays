@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0b0e14">
+    <title>Controller</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+
+<body>
+    <header class="header">
+        <h1 class="title">Controller</h1>
+        <p class="status" id="status" data-state="connecting">Connecting</p>
+    </header>
+
+    <main class="pads">
+        <button class="pad" type="button" data-button="A">
+            <span class="pad-label">A</span>
+            <span class="pad-count" data-count="A">0</span>
+        </button>
+        <button class="pad" type="button" data-button="B">
+            <span class="pad-label">B</span>
+            <span class="pad-count" data-count="B">0</span>
+        </button>
+    </main>
+
+    <footer class="footer">
+        <p class="result" id="result">Press a button to vote</p>
+    </footer>
+
+    <script type="module" src="/client.js"></script>
+</body>
+
+</html>

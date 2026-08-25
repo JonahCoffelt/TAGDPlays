@@ -1,0 +1,32 @@
+{
+  "name": "game-networker",
+  "version": "0.1.0",
+  "description": "Minimal WebSocket game networking: an HTTP + WebSocket server that serves its own browser client.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "!src/*.py",
+    "!src/requirements.txt",
+    "!src/__pycache__"
+  ],
+  "engines": {
+    "node": ">=20.11"
+  },
+  "keywords": [
+    "game",
+    "networking",
+    "websocket",
+    "multiplayer"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "start": "node app/server.js"
+  },
+  "dependencies": {
+    "ws": "^8.21.3"
+  }
+}

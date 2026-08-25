@@ -1,0 +1,6 @@
+websockets>=13
+
+# Keyboard backends for host.py. One is enough: evdev reaches every window including
+# under Wayland, pynput only reaches X11 and XWayland windows.
+evdev>=1.7
+pynput>=1.7

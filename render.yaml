@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: tagd-plays
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
