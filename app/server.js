@@ -5,8 +5,8 @@ import { GameServer } from "../src/index.js";
 // Swap the images for your own by replacing the files in public/teams, or point these
 // at a different path. Names show up on the picker, the controller and the admin page.
 const TEAMS = [
-    { id: "1", name: "Team One", image: "/teams/one.svg" },
-    { id: "2", name: "Team Two", image: "/teams/two.svg" },
+    { id: "1", name: "Team One", image: "/teams/one.png" },
+    { id: "2", name: "Team Two", image: "/teams/two.png" },
 ];
 
 const INPUTS = ["up", "down", "left", "right", "A", "B", "X", "Y"];

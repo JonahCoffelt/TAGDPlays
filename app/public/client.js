@@ -19,18 +19,25 @@ let teams = null;
 let epoch = 0;
 let team = localStorage.getItem(STORAGE_KEY);
 
+const COOLDOWN_MS = 250;
+
 for (const key of document.querySelectorAll("[data-input]")) {
     const input = key.dataset.input;
 
-    // pointerdown rather than click, so a press registers the moment a thumb lands.
-    // Each key listens for itself, which is what makes two-thumb presses both count.
-    gameClient.addInput(key, "pointerdown", "press", { input });
-
     key.addEventListener("pointerdown", (event) => {
+        if (key.classList.contains("is-cooling")) {
+            return;
+        }
+
         // Keeps the press with this key even if the thumb slides off it
         key.setPointerCapture(event.pointerId);
-        key.classList.add("is-pressed");
+        key.classList.add("is-pressed", "is-cooling");
         navigator.vibrate?.(12);
+        gameClient.send("press", { input });
+
+        window.setTimeout(() => {
+            key.classList.remove("is-cooling");
+        }, COOLDOWN_MS);
     });
 
     for (const event of ["pointerup", "pointercancel"]) {

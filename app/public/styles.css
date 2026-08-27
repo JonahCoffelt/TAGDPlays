@@ -214,6 +214,11 @@ body {
     background: linear-gradient(180deg, #2a3446 0%, var(--key) 100%);
 }
 
+.dpad-key,
+.face-key {
+    overflow: hidden;
+}
+
 .dpad-key {
     position: relative;
     color: var(--muted);
@@ -295,6 +300,8 @@ body {
 }
 
 .face-key {
+    position: relative;
+    overflow: hidden;
     width: 100%;
     aspect-ratio: 1;
     border: 1px solid var(--key-edge);
@@ -332,6 +339,43 @@ body {
 .face-key.is-pressed {
     transform: scale(0.94);
     filter: brightness(1.6);
+}
+
+/* A draining overlay, not a number, so a glance is enough to know when the button is live */
+.dpad-key.is-cooling,
+.face-key.is-cooling {
+    filter: grayscale(1) brightness(0.7);
+    cursor: default;
+    pointer-events: none;
+}
+
+.dpad-key.is-cooling::before,
+.face-key.is-cooling::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 100%;
+    background: rgba(12, 16, 24, 0.72);
+    transform-origin: bottom;
+    animation: cooldown-drain 0.25s linear forwards;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.dpad-key::after {
+    z-index: 0;
+}
+
+@keyframes cooldown-drain {
+    from {
+        transform: scaleY(1);
+    }
+
+    to {
+        transform: scaleY(0);
+    }
 }
 
 @media (min-width: 900px) {
