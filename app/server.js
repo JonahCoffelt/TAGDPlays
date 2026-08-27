@@ -323,39 +323,60 @@ gameServer.respond("deleteMappings", (data) => {
     return config();
 });
 
-function takeWinner(team) {
-    const tally = counts[team];
-    const total = INPUTS.reduce((sum, input) => sum + tally[input], 0);
+function shuffle(items) {
+    const shuffled = [...items];
 
-    if (total === 0) {
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    return shuffled;
+}
+
+function takeWinners(team) {
+    const tally = counts[team];
+    const pressed = INPUTS.filter((input) => tally[input] > 0);
+    const total = pressed.reduce((sum, input) => sum + tally[input], 0);
+
+    if (pressed.length === 0) {
         return null;
     }
 
-    const highest = Math.max(...INPUTS.map((input) => tally[input]));
-    const tied = INPUTS.filter((input) => tally[input] === highest);
-    // Broken by chance rather than by input order, so no input is favoured in a tie
-    const input = tied[Math.floor(Math.random() * tied.length)];
+    // Shuffle first so a tie is not broken by the order the buttons happen to be listed
+    const ranked = shuffle(pressed).sort((a, b) => tally[b] - tally[a]);
+    const top = ranked.slice(0, 2);
 
     counts[team] = emptyTeamCounts();
 
-    return { team, input, key: mappings[team][input], count: tally[input], total };
+    return {
+        team,
+        total,
+        picks: top.map((input) => ({
+            input,
+            key: mappings[team][input],
+            count: tally[input],
+        })),
+    };
 }
 
 // Reading the winners also starts the next round for both teams, so no press is ever
-// sent to the host twice
+// sent to the host twice. Each team contributes its top two inputs, or just one if
+// only one button was pressed.
 gameServer.respond("winner", () => {
     if (!sending) {
         return { sending: false, ...Object.fromEntries(TEAM_IDS.map((team) => [team, null])) };
     }
 
-    const results = Object.fromEntries(TEAM_IDS.map((team) => [team, takeWinner(team)]));
+    const results = Object.fromEntries(TEAM_IDS.map((team) => [team, takeWinners(team)]));
 
     for (const result of Object.values(results)) {
         if (result) {
-            console.log(
-                `Team ${result.team}: ${result.input} wins with ${result.count} of ` +
-                `${result.total}, pressing ${result.key}`,
-            );
+            const summary = result.picks
+                .map((pick) => `${pick.input} ${pick.count}`)
+                .join(" + ");
+            const keys = result.picks.map((pick) => pick.key).join("+");
+            console.log(`Team ${result.team}: ${summary} of ${result.total}, pressing ${keys}`);
         }
     }
 

@@ -320,8 +320,18 @@ gameClient.on("result", (results) => {
             continue;
         }
 
-        panel.lastResult.textContent = result
-            ? `Last round: ${result.input} won ${result.count} of ${result.total}, pressed ${result.key}`
-            : "Last round: nobody pressed anything";
+        const picks = result?.picks ?? [];
+
+        if (picks.length === 0) {
+            panel.lastResult.textContent = "Last round: nobody pressed anything";
+            continue;
+        }
+
+        const summary = picks
+            .map((pick) => `${pick.input} (${pick.count})`)
+            .join(" and ");
+        const keys = picks.map((pick) => pick.key).join("+");
+        panel.lastResult.textContent =
+            `Last round: ${summary} of ${result.total}, pressed ${keys}`;
     }
 });

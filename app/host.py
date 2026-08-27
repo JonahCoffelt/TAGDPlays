@@ -1,8 +1,9 @@
-"""Presses whichever button each team pressed most.
+"""Presses whichever buttons each team pressed most.
 
 Start app/server.js first, then run this on the machine running the game. Every team
-is counted separately and every poll takes the leading button from each of them, so a
-round covers exactly the time since the previous poll.
+is counted separately. Each poll takes that team's top two inputs (or one, if only one
+button was pressed) and holds those keys together, so a round covers exactly the time
+since the previous poll.
 
 Which key each team's buttons press is decided by the server and edited at
 /admin.html, so this only has to press whatever keys it is handed.
@@ -49,8 +50,8 @@ def websocket_url(server):
 
 
 async def press(presser, keys):
-    """Hold every key down together, so both teams act in the same instant."""
-    # Two teams mapped to the same key is still one press, and pressing it twice would
+    """Hold every key down together, so both teams — and a team's top two — act at once."""
+    # The same key from two picks is still one press, and pressing it twice would
     # leave the second release lifting a key that is already up
     keys = list(dict.fromkeys(keys))
 
@@ -70,19 +71,30 @@ def keys_from(results):
         if team == "sending" or not isinstance(result, dict):
             continue
 
-        key = result["key"]
+        picks = result.get("picks") or []
+        chosen = []
 
-        # The mappings live on the server and are edited from /admin.html, so a key this
-        # build cannot press means the two have drifted apart
-        if key not in SUPPORTED_KEYS:
-            print(f"Team {team} asked for key {key!r}, which this host cannot press")
+        for pick in picks:
+            key = pick.get("key")
+
+            # The mappings live on the server and are edited from /admin.html, so a key this
+            # build cannot press means the two have drifted apart
+            if key not in SUPPORTED_KEYS:
+                print(f"Team {team} asked for key {key!r}, which this host cannot press")
+                continue
+
+            chosen.append((pick["input"], pick["count"], key))
+
+        if not chosen:
             continue
 
         print(
-            f"Team {team}: {result['input']} won {result['count']}/{result['total']}, "
-            f"pressing {key}"
+            f"Team {team}: "
+            + " + ".join(f"{input} ({count})" for input, count, _ in chosen)
+            + f" of {result['total']}, pressing "
+            + "+".join(key for _, _, key in chosen)
         )
-        keys.append(key)
+        keys.extend(key for _, _, key in chosen)
 
     return keys
 
