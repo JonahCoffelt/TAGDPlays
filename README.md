@@ -1,4 +1,4 @@
-# Crowd Plays
+# TAGD Plays
 
 Crowd-controlled keyboard inspired by DougDoug's Twitch Plays. Phone players pick a team, get a controller, and send button inputs. The host machine presses the most pressed buttons from each team.
 
