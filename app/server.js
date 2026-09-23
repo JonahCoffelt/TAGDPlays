@@ -38,13 +38,10 @@ const TEAM_IDS = TEAMS.map((team) => team.id);
 const MAPPINGS_DIR = path.join(import.meta.dirname, "mappings");
 
 const gameServer = new GameServer({
-    // A host assigns the port at runtime; 3001 is only the local fallback
-    port: process.env.PORT || 3001,
+    // Local only. Phones join through the trycloudflare.com URL that start() prints,
+    // and player ids come from the address Cloudflare puts on the request.
+    port: Number(process.env.PORT) || 3001,
     publicDir: path.join(import.meta.dirname, "public"),
-    // Behind a host's proxy every connection appears to come from the proxy, so player
-    // ids only stay distinct if the forwarded address is trusted. Off locally, where
-    // there is no proxy and the header would let a player choose their own id.
-    trustProxy: Boolean(process.env.RENDER),
 });
 
 const mappings = structuredClone(DEFAULT_MAPPINGS);
@@ -399,4 +396,5 @@ setInterval(() => {
     publishCounts();
 }, COUNTS_INTERVAL_MS);
 
-gameServer.start();
+const url = await gameServer.start();
+console.log(`Key host: python app/host.py ${url}`);

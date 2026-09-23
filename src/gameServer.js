@@ -3,6 +3,8 @@ import fs from "node:fs"
 import path from "node:path"
 import crypto from "node:crypto"
 import { WebSocket, WebSocketServer } from "ws"
+import { Tunnel, bin, install } from "cloudflared"
+import QRCode from "qrcode"
 
 const CONTENT_TYPES = {
     ".html": "text/html",
@@ -43,12 +45,16 @@ class ConnectedClient {
 }
 
 class GameServer {
-    constructor({ port = 3000, publicDir = null, clientRoute = "/gameClient.js", trustProxy = false } = {}) {
+    constructor({ port = 3000, publicDir = null, clientRoute = "/gameClient.js", tunnelTimeout = 20000, qr = "qr.png" } = {}) {
         this.port = port;
         this.publicDir = publicDir ? path.resolve(publicDir) : null;
         this.clientRoute = clientRoute;
-        this.trustProxy = trustProxy;
+        this.tunnelTimeout = tunnelTimeout;
+        this.qr = qr === true ? "qr.png" : qr;
         this.clientFile = path.join(import.meta.dirname, "gameClient.js");
+
+        this.url = null;
+        this.tunnel = null;
 
         this.typeHandlers = new Map();
         this.responders = new Map();
@@ -134,21 +140,19 @@ class GameServer {
     }
 
     clientAddress(req) {
-        // Only trust a forwarded header when a proxy we control sets it, since a client
-        // can otherwise send one itself and choose its own id
-        if (this.trustProxy) {
-            const forwarded = req.headers["x-forwarded-for"];
+        // Traffic arrives from the local cloudflared process, so the socket address is always
+        // loopback and the real address has to come from the header Cloudflare sets
+        const forwarded = req.headers["cf-connecting-ip"] || req.headers["x-forwarded-for"];
 
-            if (forwarded) {
-                return forwarded.split(",")[0].trim();
-            }
+        if (forwarded) {
+            return forwarded.split(",")[0].trim();
         }
 
         return req.socket.remoteAddress ?? "";
     }
 
     clientId(ip) {
-        // Hashed because ids are shared with other players, and an address is not ours to hand out
+        // Hashed because ids are shared
         const address = ip.replace(/^::ffff:/, "");
         return crypto.createHash("sha256").update(address).digest("hex").slice(0, 12);
     }
@@ -225,10 +229,132 @@ class GameServer {
         }
     }
 
-    start() {
-        this.http_server.listen(this.port, () => {
-            console.log(`Server listening on http://localhost:${this.port}`)
-        })
+    async start() {
+        await new Promise((resolve) => this.http_server.listen(this.port, resolve));
+
+        this.url = await this.startTunnel();
+        console.log(`Game available at ${this.url}`);
+
+        if (this.qr) {
+            const file = await this.writeQrCode();
+            console.log(`QR code saved to ${file}, scan it to join from a phone`);
+        }
+
+        return this.url;
+    }
+
+    async writeQrCode(file = this.qr) {
+        const target = path.resolve(file);
+
+        await QRCode.toFile(target, this.url, { width: 512, margin: 2 });
+
+        return target;
+    }
+
+    async startTunnel() {
+        // The npm postinstall normally fetches this, but it can be skipped or blocked
+        if (!fs.existsSync(bin)) {
+            console.log("Downloading cloudflared...");
+            await install(bin);
+        }
+
+        let url;
+
+        try {
+            url = await this.openTunnel({});
+        } catch (error) {
+            // cloudflared prefers QUIC, which needs outbound UDP 7844. Plenty of networks
+            // block that, and http2 gets the same job done over TCP 443.
+            console.warn(`Tunnel could not connect over QUIC (${error.message})`);
+            console.warn("Retrying with --protocol http2...");
+            url = await this.openTunnel({ protocol: "http2" });
+        }
+
+        this.tunnel.on("error", (error) => {
+            console.error(`cloudflared error: ${error.message}`);
+        });
+
+        this.tunnel.on("exit", (code) => {
+            console.error(`cloudflared exited with code ${code}, ${url} is no longer reachable`);
+        });
+
+        // cloudflared outlives its parent, so without this a killed server leaves the tunnel
+        // running and the local port still published
+        const tunnel = this.tunnel;
+        process.once("exit", () => tunnel.stop());
+
+        for (const signal of ["SIGINT", "SIGTERM"]) {
+            process.once(signal, () => {
+                tunnel.stop();
+                process.exit(signal === "SIGINT" ? 130 : 143);
+            });
+        }
+
+        return url;
+    }
+
+    openTunnel(options) {
+        const tunnel = Tunnel.quick(`http://localhost:${this.port}`, options);
+        const output = [];
+
+        this.tunnel = tunnel;
+
+        return new Promise((resolve, reject) => {
+            let url = null;
+
+            const onOutput = (line) => {
+                output.push(line.trim());
+                if (output.length > 8) {
+                    output.shift();
+                }
+            };
+            const onUrl = (value) => { url = value; };
+            const onConnected = () => finish(null);
+            const onError = (error) => finish(error);
+            const onExit = (code) => finish(new Error(`cloudflared exited with code ${code}`));
+
+            // A URL is printed before the edge connections exist, so it is not proof of anything
+            const timer = setTimeout(() => {
+                finish(new Error("timed out waiting for the tunnel to reach Cloudflare"));
+            }, this.tunnelTimeout);
+
+            const finish = (error) => {
+                clearTimeout(timer);
+                tunnel.off("stderr", onOutput);
+                tunnel.off("url", onUrl);
+                tunnel.off("connected", onConnected);
+                tunnel.off("error", onError);
+                tunnel.off("exit", onExit);
+
+                if (error) {
+                    tunnel.stop();
+                    error.message += output.length ? `\ncloudflared said:\n  ${output.join("\n  ")}` : "";
+                    reject(error);
+                    return;
+                }
+
+                resolve(url);
+            };
+
+            tunnel.on("stderr", onOutput);
+            tunnel.on("url", onUrl);
+            tunnel.once("connected", onConnected);
+            tunnel.once("error", onError);
+            tunnel.once("exit", onExit);
+        });
+    }
+
+    async stop() {
+        this.tunnel?.stop();
+        this.tunnel = null;
+        this.url = null;
+
+        for (const client of this.clients) {
+            client.socket.terminate();
+        }
+
+        this.ws_server.close();
+        await new Promise((resolve) => this.http_server.close(resolve));
     }
 
 }

@@ -1,0 +1,9 @@
+README.md
+pyproject.toml
+src/game_networker/__init__.py
+src/game_networker/game_client.py
+src/game_networker.egg-info/PKG-INFO
+src/game_networker.egg-info/SOURCES.txt
+src/game_networker.egg-info/dependency_links.txt
+src/game_networker.egg-info/requires.txt
+src/game_networker.egg-info/top_level.txt

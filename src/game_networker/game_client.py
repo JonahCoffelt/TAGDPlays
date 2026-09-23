@@ -33,7 +33,7 @@ class GameClient:
         max_reconnect_delay=10.0,
         request_timeout=5.0,
     ):
-        self.url = host if "://" in host else f"{'wss' if secure else 'ws'}://{host}"
+        self.url = self._build_url(host, secure)
         self.reconnect = reconnect
         self.reconnect_delay = reconnect_delay
         self.max_reconnect_delay = max_reconnect_delay
@@ -54,6 +54,17 @@ class GameClient:
         self._retry_delay = reconnect_delay
         self._writable = asyncio.Event()
         self._connected = asyncio.Event()
+
+    @staticmethod
+    def _build_url(host, secure):
+        if "://" not in host:
+            return f"{'wss' if secure else 'ws'}://{host}"
+
+        # A tunnel URL gets copied out of a browser as https, so accept that spelling too
+        scheme, _, rest = host.partition("://")
+        scheme = {"http": "ws", "https": "wss"}.get(scheme, scheme)
+
+        return f"{scheme}://{rest.rstrip('/')}"
 
     async def connect(self):
         """Start connecting and wait until the connection is open."""

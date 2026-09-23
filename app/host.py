@@ -1,9 +1,13 @@
 """Presses whichever buttons each team pressed most.
 
-Start app/server.js first, then run this on the machine running the game. Every team
-is counted separately. Each poll takes that team's top two inputs (or one, if only one
-button was pressed) and holds those keys together, so a round covers exactly the time
-since the previous poll.
+Start the server first (`npm start`). It prints a trycloudflare.com URL and writes
+qr.png. Run this on the machine running the game and pass that URL:
+
+    python app/host.py https://….trycloudflare.com
+
+Every team is counted separately. Each poll takes that team's top two inputs (or one,
+if only one button was pressed) and holds those keys together, so a round covers
+exactly the time since the previous poll.
 
 Which key each team's buttons press is decided by the server and edited at
 /admin.html, so this only has to press whatever keys it is handed.
@@ -15,14 +19,13 @@ import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# The client package lives in src/. `pip install -e .` puts the same package on the
+# path; this keeps `python app/host.py` working without that install.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
+from game_networker import GameClient, RequestError
 from keypress import SUPPORTED_KEYS, make_presser
-from src import GameClient, RequestError
 
-# Either the address a browser would use or a ws:// one, since websocket_url converts it:
-#   SERVER=https://your-app.onrender.com python app/host.py
-SERVER = os.environ.get("SERVER", "https://tagdplays.onrender.com/")
 # Force a backend with KEYBOARD_BACKEND=uinput|sendinput|quartz|pynput
 KEYBOARD_BACKEND = os.environ.get("KEYBOARD_BACKEND", "auto")
 
@@ -31,22 +34,18 @@ POLL_INTERVAL = 0.1
 HOLD_TIME = 0.05
 
 
-def websocket_url(server):
-    """Turn the address as a browser would show it into one a WebSocket can open.
+def server_url():
+    """The public URL the server printed. It is different every time the server starts."""
+    url = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("SERVER", "")
+    url = url.strip()
 
-    A deployed server is reached over TLS, and a plain ws:// attempt against it gets a
-    redirect to TLS that WebSocket clients cannot follow.
-    """
-    for browser_scheme, socket_scheme in (("https://", "wss://"), ("http://", "ws://")):
-        if server.startswith(browser_scheme):
-            server = socket_scheme + server[len(browser_scheme):]
-            break
-    else:
-        if "://" in server and not server.startswith(("ws://", "wss://")):
-            raise ValueError(f"Cannot connect to {server}, expected an http, https, ws or wss URL")
+    if not url:
+        raise SystemExit(
+            "Pass the URL the server printed:\n"
+            "  python app/host.py https://….trycloudflare.com"
+        )
 
-    # A trailing slash becomes a request path the server has no WebSocket route for
-    return server.rstrip("/")
+    return url
 
 
 async def press(presser, keys):
@@ -127,7 +126,7 @@ async def play(client, presser):
 
 
 async def main():
-    url = websocket_url(SERVER)
+    url = server_url()
     presser = make_presser(backend=KEYBOARD_BACKEND)
     print(f"Pressing keys with the {presser.name} backend on {sys.platform}")
     if getattr(presser, "hint", None):
@@ -155,7 +154,7 @@ if __name__ == "__main__":
     # The client retries forever and only whispers about failures, which is
     # indistinguishable from a hang, so let it say why each attempt failed
     logging.basicConfig(format="%(message)s")
-    logging.getLogger("src.game_client").setLevel(logging.DEBUG)
+    logging.getLogger("game_networker.game_client").setLevel(logging.DEBUG)
 
     try:
         asyncio.run(main())
