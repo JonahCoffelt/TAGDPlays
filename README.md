@@ -1,9 +1,11 @@
-# Crowd Plays
+# TAGD Plays
 
 Crowd-controlled keyboard inspired by DougDoug's Twitch Plays. Phone players pick a team, get a controller, and send button inputs. The host machine presses the most pressed buttons from each team.
 
-![alt text](./images/controller-demo.png)
-![alt text](./images/live-demo.png)
+<p float="left">
+  <img src="images/controller-demo.png" width="45%" />
+  <img src="images/live-demo.png" width="45%" />
+</p>
 
 ## Prerequisites
 Needs Node 20.11+ and Python 3.10+.
@@ -23,7 +25,7 @@ python3 -m venv .venv
 npm start
 ```
 
-The server prints a `trycloudflare.com` URL and writes `qr.png`. Phones open scan QR code to join.
+The server prints a `trycloudflare.com` URL and writes `qr.png`. Phones scan QR code to join.
 
 ### Host Machine
 To start the key pressing on the host machine with games, run the python host file in the virtual enviornment (use the link given by the server terminal output on start):
@@ -34,12 +36,12 @@ python3 app/host.py https://….trycloudflare.com
 
 ### Mac Note
 
-The URL is new every time you start the server. If you restart the server, you will need to give users the new link or QR code. 
-
 On macOS, allow Terminal/Python under System Settings → Privacy & Security → Accessibility so `host.py` can press keys.
 
 ## Use
 
 - **Phone Players** — Scan `qr.png`, pick a team, then use the controller.
-- **Host page** — `https://….trycloudflare.com/admin.html`. Map buttons to keys, save/load layouts, pause inputs, or reset teams. It is recomended to pause inputs rather than kill the server to avoid needing to redistribute the QR code. 
+- **Host page** — `https://….trycloudflare.com/admin.html`. Map buttons to keys, save/load layouts, pause inputs, or reset teams. It is recommended to pause inputs rather than kill the server to avoid needing to redistribute the QR code. 
 - **Team images** — Replace `app/public/teams/one.png` and `two.png`.
+
+The URL is new every time you start the server. If you restart the server, you will need to give users the new link or QR code. 
