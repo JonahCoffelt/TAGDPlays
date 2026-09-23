@@ -29,9 +29,9 @@ from keypress import SUPPORTED_KEYS, make_presser
 # Force a backend with KEYBOARD_BACKEND=uinput|sendinput|quartz|pynput
 KEYBOARD_BACKEND = os.environ.get("KEYBOARD_BACKEND", "auto")
 
-POLL_INTERVAL = 0.1
+POLL_INTERVAL = 0.25
 # Games read the keyboard once a frame, so an instant press and release can fall between frames
-HOLD_TIME = 0.05
+HOLD_TIME = 0.3
 
 
 def server_url():
