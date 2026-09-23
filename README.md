@@ -2,8 +2,8 @@
 
 Crowd-controlled keyboard inspired by DougDoug's Twitch Plays. Phone players pick a team, get a controller, and send button inputs. The host machine presses the most pressed buttons from each team.
 
-![alt text](./images/controller-demo.png)
-![alt text](./images/live-demo.png)
+<img src="./images/controller-demo.png" alt="Controller" width="300">
+<img src="./images/live-demo.png" alt="Live" width="300">
 
 ## Prerequisites
 Needs Node 20.11+ and Python 3.10+.
